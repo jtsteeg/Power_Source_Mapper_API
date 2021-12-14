@@ -7,7 +7,6 @@ from flask_marshmallow import Marshmallow
 
 app = Flask(__name__)
 
-ma = Marshmallow(app)
 
 #cosmos db data
 url = os.environ['COSMOS_URI']
@@ -30,9 +29,6 @@ plants = list(container.query_items(
 ))
 
 
-
-
-
 @app.route("/")
 def home():
     return "hello flask!"
@@ -42,16 +38,17 @@ def powerplants():
     result = plants_schema.dump(plants)
     return jsonify(result)
 
-
+#initialize serailizer
+ma = Marshmallow(app)
 
 class PlantSchema(ma.Schema):
     class Meta:
         fields = ('name', 'coordinates', 'outputMWH', 'fuelTypes', 'Renewable')
 
 
-
 plant_schema = PlantSchema()
 plants_schema = PlantSchema(many=True)
+
 
 if __name__ == '__main__':
     app.run()
