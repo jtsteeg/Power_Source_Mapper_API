@@ -4,6 +4,7 @@ import json
 import os
 from flask_marshmallow import Marshmallow
 import uuid
+from flask_jwt_extended import JWTManager, jwt_required, create_access_token
 
 
 app = Flask(__name__)
@@ -14,16 +15,19 @@ url = os.environ['COSMOS_URI']
 key = os.environ['COSMOS_KEY']
 database_name = 'testPowerPlants'
 container_name = 'powerPlants'
+admin_container_name = 'admins'
 
 
 # Initialize the Cosmos client
 client = CosmosClient(url, credential=key)
 database = client.get_database_client(database_name)
 container = database.get_container_client(container_name)
+adminContainer = database.get_container_client(admin_container_name)
+
+app.config['JWT_SECRET_KEY'] = str(uuid.uuid4())  #'topSecret' #change to a uuid later
+jwt = JWTManager(app)
 
 
-# Query data
-query = "SELECT * from c"
 
 
 @app.route("/")
@@ -56,8 +60,38 @@ def getPowerPlantsByName(name):
     result = plant_schema.dump(plant)
     return jsonify(result)
 
+@app.route('/login', methods=['POST'])
+def login():
+    if request.is_json:
+        username = request.json['username']
+        password = request.json['password']
+    else:
+        abort(402)
+
+
+    print(username)
+    print(password)
+    matchingUsernames = list(adminContainer.query_items(
+        query=f'SELECT * from c WHERE lower(c.username)=lower(\'{username}\')',
+        enable_cross_partition_query=True
+    ))
+    print(matchingUsernames)
+
+    if len(matchingUsernames) != 1:
+        return jsonify(message="incorrect username"), 401
+
+    matchingUsername = matchingUsernames[0]
+
+    print(matchingUsername["password"])
+
+    if matchingUsername["password"] == password:
+        access_token = create_access_token(identity=username)
+        return jsonify(message="Login succeeded!", access_token=access_token)
+    else:
+        return jsonify(message="incorrect password"), 401
 
 @app.route('/addpowerplants', methods=['POST'])
+@jwt_required()
 def addNewPlant():
     if not request.json:
         abort(400)
@@ -85,10 +119,10 @@ def addNewPlant():
         errors.append("outputMWH must be greater than 0")
 
     if powerPlantRecord['coordinates']['lat'] > 90 or powerPlantRecord['coordinates']['lat'] < -90 :
-        errors.append("Latitude outside realistic range")
+        errors.append("Latitude outside range")
     
-    if powerPlantRecord['coordinates']['lat'] > 90 or powerPlantRecord['coordinates']['lat'] < -90 :
-        errors.append("Latitude outside realistic range")
+    if powerPlantRecord['coordinates']['lon'] > 180 or powerPlantRecord['coordinates']['lon'] < -180 :
+        errors.append("Longitude outside  range")
 
     if len(errors) > 0:
         response = jsonify({'errors': errors})
