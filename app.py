@@ -13,7 +13,7 @@ app = Flask(__name__)
 # cosmos db data
 url = os.environ['COSMOS_URI']
 key = os.environ['COSMOS_KEY']
-database_name = 'testPowerPlants'
+database_name = 'powerPlants-prod'
 container_name = 'powerPlants'
 admin_container_name = 'admins'
 
@@ -38,7 +38,7 @@ def home():
 @app.route('/powerplants', methods=['GET'])
 def getPowerPlants():
     plants = list(container.query_items(
-        query=query,
+        query="SELECT * from c",
         enable_cross_partition_query=True
     ))
     result = plants_schema.dump(plants)
